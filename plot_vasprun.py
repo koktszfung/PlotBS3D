@@ -22,7 +22,11 @@ def get_eigenvalues(vasprun_root: ElementTree) -> numpy.ndarray:
 
 
 def get_maxorbitals(vasprun_root: ElementTree) -> numpy.ndarray:
-    ions_tree_list = vasprun_root.find("calculation/projected/array/set/set/set").findall("set")
+    procar_tree = vasprun_root.find("calculation/projected")
+    if procar_tree is None:
+        print("procar not found, return none instead")
+        return numpy.array([])
+    ions_tree_list = procar_tree.find("array/set/set/set").findall("set")
     ions = numpy.asarray([[ion.text.split()
                            for ion in ions_tree.findall("r")]
                           for ions_tree in ions_tree_list], float)
@@ -34,6 +38,7 @@ def get_maxorbitals(vasprun_root: ElementTree) -> numpy.ndarray:
 def get_mask(total: int, axis: int, layer: int) -> numpy.ndarray:
     side = round(total ** (1 / 3))
     if layer > side:
+        print("layer out of range, return none instead")
         return numpy.array([])
     indices = numpy.arange(total)
     if axis == 0:
@@ -43,6 +48,7 @@ def get_mask(total: int, axis: int, layer: int) -> numpy.ndarray:
     elif axis == 2:
         return indices % side == layer
     else:
+        print("axis out of range, return none instead")
         return numpy.array([])
 
 
@@ -70,7 +76,6 @@ def add_bands_surface_plot(axes3d: Axes3D,
         x += offset[0]
         y += offset[1]
         zs += offset[2]
-
     triang = tri.Triangulation(x, y)
     x_linspace = numpy.linspace(min(x), max(x), resolution)
     y_linspace = numpy.linspace(min(y), max(y), resolution)
@@ -95,7 +100,6 @@ def add_kpoints_scatter_plot(axes3d: Axes3D,
         kx += offset[0]
         ky += offset[1]
         kz += offset[2]
-
     axes3d.scatter(kx, ky, kz)
 
 
@@ -103,15 +107,15 @@ def plot():
     fig = pyplot.figure()
     axes3d = Axes3D(fig)
 
-    vasprun_root = get_vasprun_root("vasp_outputs/si_diamond_r/vasprun.xml")
+    vasprun_root = get_vasprun_root("vasp_outputs/mp-4701/vasprun.xml")
     kpoints = get_kpoints(vasprun_root)
     eigenvalues = get_eigenvalues(vasprun_root)
 
     maxorbitals = get_maxorbitals(vasprun_root)
-    band_indices = [key for key, val in enumerate(maxorbitals) if val <= 0]
+    band_indices = [key for key, val in enumerate(maxorbitals) if val <= 1]
 
+    add_bands_surface_plot(axes3d, kpoints, eigenvalues, 2, 4, band_indices, 27)
     add_kpoints_scatter_plot(axes3d, kpoints, 2, 4)
-    add_bands_surface_plot(axes3d, kpoints, eigenvalues, 2, 4, band_indices, 18)
 
     pyplot.axis("equal")
     pyplot.show()
