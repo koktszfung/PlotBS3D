@@ -1,34 +1,33 @@
 import os
 from pymatgen.ext.matproj import MPRester
 from pymatgen.io.vasp.sets import MPRelaxSet
-from pymatgen.io.vasp.inputs import Incar, Poscar, Potcar, Kpoints, VaspInput
-from pymatgen.symmetry.bandstructure import HighSymmKpath
 
 
-APIkey = 'vI8phwVV3Ie6s4ke'  # update the key when necessary
-mpr = MPRester(APIkey)
+def initialize_pseudo_potential():
+    os.system('pmg config --add PMG_VASP_PSP_DIR C:/Users/user/PycharmProject/PlotBS3D/pseudo-potential')
+    os.system('pmg config --add PMG_DEFAULT_FUNCTIONAL PW91')
 
 
-class VaspInputs:
+def get_input_set(mprester: MPRester, mpnum: int) -> MPRelaxSet:
+    return MPRelaxSet(mprester.get_structure_by_material_id(f"mp-{mpnum}"), potcar_functional="PW91")
 
-    def __init__(self, mp_id):
 
-        self.mp_id = mp_id
+def write_poscar_potcar(mpnum: int):
+    mprester = MPRester('vI8phwVV3Ie6s4ke')
+    write_dir = f"vasp_inputs/{mpnum}/"
+    if not os.path.exists(write_dir):
+        os.makedirs(write_dir)
+    input_set = get_input_set(mprester, mpnum)
+    input_set.poscar.write_file(write_dir+"POSCAR")
+    input_set.potcar.write_file(write_dir+"POTCAR")
 
-        self.structure = mpr.get_structure_by_material_id(self.mp_id)
-        self.primitive_structure = self.structure.get_primitive_structure()
 
-        self.input_set = MPRelaxSet(self.structure)
-        self.input_set.potcar_functional = 'PW91'
-
-    def write_inputs(self):
-        self.input_set.write_input('vasp_inputs/'+self.mp_id+'/', make_dir_if_not_present=True)
+def main():
+    sg1 = [14983, 23487, 24595, 24705, 25483]
+    sg2 = [10559, 10560, 10621, 10838, 11462]
+    for i in sg1:
+        write_poscar_potcar(i)
 
 
 if __name__ == '__main__':
-    # Every time when changing running environment, need uncomment the following two lines
-    # os.system('pmg config --add PMG_VASP_PSP_DIR C:/Users/user/PycharmProject/PlotBS3D/pseudo-potential')
-    # os.system('pmg config --add PMG_DEFAULT_FUNCTIONAL PW91')
-
-    inputs = VaspInputs('mp-696736')
-    inputs.write_inputs()
+    main()

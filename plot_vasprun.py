@@ -103,7 +103,7 @@ def add_kpoints_scatter_plot(axes3d: Axes3D,
     axes3d.scatter(kx, ky, kz)
 
 
-def plot():
+def main():
     fig = pyplot.figure()
     axes3d = Axes3D(fig)
 
@@ -122,4 +122,4 @@ def plot():
 
 
 if __name__ == '__main__':
-    plot()
+    main()
