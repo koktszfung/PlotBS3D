@@ -21,7 +21,7 @@ def get_eigenvalues(vasprun_root: ElementTree) -> numpy.ndarray:
                           for eigenvalues_tree in eigenvalues_tree_list], float)
 
 
-def get_orbitals(vasprun_root: ElementTree) -> numpy.ndarray:
+def get_maxorbitals(vasprun_root: ElementTree) -> numpy.ndarray:
     ions_tree_list = vasprun_root.find("calculation/projected/array/set/set/set").findall("set")
     ions = numpy.asarray([[ion.text.split()
                            for ion in ions_tree.findall("r")]
@@ -107,8 +107,8 @@ def plot():
     kpoints = get_kpoints(vasprun_root)
     eigenvalues = get_eigenvalues(vasprun_root)
 
-    orbitals = get_orbitals(vasprun_root)
-    band_indices = [key for key, val in enumerate(orbitals) if val <= 0]
+    maxorbitals = get_maxorbitals(vasprun_root)
+    band_indices = [key for key, val in enumerate(maxorbitals) if val <= 0]
 
     add_kpoints_scatter_plot(axes3d, kpoints, 2, 4)
     add_bands_surface_plot(axes3d, kpoints, eigenvalues, 2, 4, band_indices, 18)
