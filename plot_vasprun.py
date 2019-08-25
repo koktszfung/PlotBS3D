@@ -5,17 +5,30 @@ from mpl_toolkits.mplot3d import Axes3D
 from typing import Union, List
 
 
-def get_kpoints_eigenvalues(vasprun_path: str):
+def get_vasprun_root(vasprun_path: str) -> ElementTree:
     tree = ElementTree.parse(vasprun_path)
-    root = tree.getroot()
+    return tree.getroot()
 
-    kpoints = numpy.asarray([kpoint.text.split() for kpoint in root.find("kpoints/varray")], float)
 
-    eigenvalues_tree_list = root.findall("calculation/eigenvalues/array/set/set/set")
-    eigenvalues = numpy.asarray([[eigenvalues.text.split()[0]
-                               for eigenvalues in eigenvalues_tree]
-                              for eigenvalues_tree in eigenvalues_tree_list], float)
-    return kpoints, eigenvalues
+def get_kpoints(vasprun_root: ElementTree) -> numpy.ndarray:
+    return numpy.asarray([kpoint.text.split() for kpoint in vasprun_root.find("kpoints/varray")], float)
+
+
+def get_eigenvalues(vasprun_root: ElementTree) -> numpy.ndarray:
+    eigenvalues_tree_list = vasprun_root.findall("calculation/eigenvalues/array/set/set/set")
+    return numpy.asarray([[eigenvalues.text.split()[0]
+                           for eigenvalues in eigenvalues_tree]
+                          for eigenvalues_tree in eigenvalues_tree_list], float)
+
+
+def get_orbitals(vasprun_root: ElementTree) -> numpy.ndarray:
+    ions_tree_list = vasprun_root.find("calculation/projected/array/set/set/set").findall("set")
+    ions = numpy.asarray([[ion.text.split()
+                           for ion in ions_tree.findall("r")]
+                          for ions_tree in ions_tree_list], float)
+    return numpy.array([0 if numpy.all(ion[:, 1:] == 0)
+                        else 1 if numpy.all(ion[:, 4:] == 0)
+                        else 2 for ion in ions])
 
 
 def get_mask(total: int, axis: int, layer: int) -> numpy.ndarray:
@@ -86,13 +99,23 @@ def add_kpoints_scatter_plot(axes3d: Axes3D,
     axes3d.scatter(kx, ky, kz)
 
 
-if __name__ == '__main__':
+def plot():
     fig = pyplot.figure()
-    ax = Axes3D(fig)
+    axes3d = Axes3D(fig)
 
-    k, e = get_kpoints_eigenvalues("vasp_outputs/si_diamond/vasprun.xml")
-    add_kpoints_scatter_plot(ax, k, 2, 4)
-    add_bands_surface_plot(ax, k, e, 2, 4, range(e.shape[1]), 18)
+    vasprun_root = get_vasprun_root("vasp_outputs/si_diamond_r/vasprun.xml")
+    kpoints = get_kpoints(vasprun_root)
+    eigenvalues = get_eigenvalues(vasprun_root)
+
+    orbitals = get_orbitals(vasprun_root)
+    band_indices = [key for key, val in enumerate(orbitals) if val <= 0]
+
+    add_kpoints_scatter_plot(axes3d, kpoints, 2, 4)
+    add_bands_surface_plot(axes3d, kpoints, eigenvalues, 2, 4, band_indices, 18)
 
     pyplot.axis("equal")
     pyplot.show()
+
+
+if __name__ == '__main__':
+    plot()
