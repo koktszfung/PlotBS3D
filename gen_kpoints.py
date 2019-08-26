@@ -1,7 +1,7 @@
 half_size = 4
 full_size = half_size*2+1
 scale = 1/half_size
-with open("KPOINTS", "w") as file:
+with open("vasp_inputs/KPOINTS", "w") as file:
     file.write(f"KPOINTS {full_size}x{full_size}x{full_size}\n")
     file.write(str(full_size**3)+"\n")
     file.write("C\n")
