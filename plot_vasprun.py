@@ -43,7 +43,7 @@ def get_eigenvalues(vasprun_root: ElementTree) -> numpy.ndarray:
                           for eigenvalues_tree in eigenvalues_tree_list], float)
 
 
-def get_maxorbitals(vasprun_root: ElementTree) -> numpy.ndarray:
+def get_orbitals(vasprun_root: ElementTree) -> numpy.ndarray:
     procar_tree = vasprun_root.find("calculation/projected")
     if procar_tree is None:
         print("procar not found, return none instead")
@@ -52,9 +52,9 @@ def get_maxorbitals(vasprun_root: ElementTree) -> numpy.ndarray:
     ions = numpy.asarray([[ion.text.split()
                            for ion in ions_tree.findall("r")]
                           for ions_tree in ions_tree_list], float)
-    return numpy.array([0 if numpy.all(ion[:, 1:] == 0)
-                        else 1 if numpy.all(ion[:, 4:] == 0)
-                        else 2 for ion in ions])
+    bands = numpy.sum(ions, 1)
+    orbitals = zip(bands[:, 0] != 0, numpy.any(bands[:, 1:4] != 0, 1), numpy.any(bands[:, 5:] != 0, 1))
+    return numpy.array([2 if d else 0.5 if p and s else 1 if p else 0 if s else None for s, p, d in orbitals])
 
 
 def get_mask(total: int, axis: int, layer: int) -> numpy.ndarray:
@@ -142,11 +142,11 @@ def add_bands_wireframe_plot(axes3d: Axes3D,
     x_linspace = numpy.linspace(min(x), max(x), resolution)
     y_linspace = numpy.linspace(min(y), max(y), resolution)
 
+    b_range = max(band_indices) - min(band_indices) if len(band_indices) > 1 else 1
     for b in band_indices:
         interpolator = tri.LinearTriInterpolator(triang, zs[:, b])
         x_meshgrid, y_meshgrid = numpy.meshgrid(x_linspace, y_linspace)
         z_mesggrid = interpolator(x_meshgrid, y_meshgrid)
-        b_range = max(band_indices) - min(band_indices)
         color = (max(band_indices) - b)/b_range/1.5
         axes3d.plot_wireframe(x_meshgrid, y_meshgrid, z_mesggrid, colors=(color, color, color))
 
@@ -178,15 +178,18 @@ def main():
     fig = pyplot.figure()
     axes3d = Axes3D(fig)
 
-    vasprun_root = get_vasprun_root("vasp_outputs/sg1/696736_c.xml")
+    vasprun_root = get_vasprun_root("vasp_outputs/sg2/9122_c.xml")
     kpoints = get_kpoints_reciprocal(vasprun_root)
     eigenvalues = get_eigenvalues(vasprun_root)
+    orbitals = get_orbitals(vasprun_root)
 
-    band_indices = range(eigenvalues.shape[1] - 6, eigenvalues.shape[1])
-    axis, layer = 2, 4
+    axis, layer = 2, 8
+    resolution = 18
+    band_indices = [key for key, val in enumerate(orbitals) if val <= 1]
+    band_indices = band_indices[-2:]
 
-    add_bands_surface_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, 27)
-    # add_bands_wireframe_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, 27)
+    add_bands_surface_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, resolution)
+    # add_bands_wireframe_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, resolution)
     # add_bands_scatter_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices)
     # add_kpoints_scatter_plot(axes3d, kpoints, axis, layer)
 
