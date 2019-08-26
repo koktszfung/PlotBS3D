@@ -10,8 +10,30 @@ def get_vasprun_root(vasprun_path: str) -> ElementTree:
     return tree.getroot()
 
 
+def get_bases_cartesian(vasprun_root: ElementTree) -> numpy.ndarray:
+    return numpy.asarray([basis.text.split()
+                          for basis in vasprun_root.findall("structure/crystal/varray")[0]], float)
+
+
+def get_bases_reciprocal(vasprun_root: ElementTree) -> numpy.ndarray:
+    return numpy.asarray([basis.text.split()
+                          for basis in vasprun_root.findall("structure/crystal/varray")[1]], float)
+
+
 def get_kpoints(vasprun_root: ElementTree) -> numpy.ndarray:
     return numpy.asarray([kpoint.text.split() for kpoint in vasprun_root.find("kpoints/varray")], float)
+
+
+def get_kpoints_cartesian(vasprun_root: ElementTree) -> numpy.ndarray:
+    bases = get_bases_cartesian(vasprun_root)
+    kpoints = get_kpoints(vasprun_root)
+    return numpy.array([numpy.sum([kpoint[i] * bases[i] for i in range(3)], 0) for kpoint in kpoints])
+
+
+def get_kpoints_reciprocal(vasprun_root: ElementTree) -> numpy.ndarray:
+    bases = get_bases_reciprocal(vasprun_root)
+    kpoints = get_kpoints(vasprun_root)
+    return numpy.array([numpy.sum([kpoint[i] * bases[i] for i in range(3)], 0) for kpoint in kpoints])
 
 
 def get_eigenvalues(vasprun_root: ElementTree) -> numpy.ndarray:
@@ -61,24 +83,88 @@ def get_x_y_zs(kpoints: numpy.ndarray, eigenvalues: numpy.ndarray,
         return kpoints[mask][:, 2], kpoints[mask][:, 0], eigenvalues[mask]
     elif axis == 2:
         return kpoints[mask][:, 0], kpoints[mask][:, 1], eigenvalues[mask]
+    else:
+        print("axis out of range, return none instead")
+        return numpy.array([]), numpy.array([]), numpy.array([])
 
 
 def get_kx_ky_kz(kpoints: numpy.ndarray) -> (numpy.ndarray, numpy.ndarray, numpy.ndarray):
     return kpoints[:, 0], kpoints[:, 1], kpoints[:, 2]
 
 
-def add_bands_surface_plot(axes3d: Axes3D,
+def add_kpoints_scatter_plot(axes3d: Axes3D,
+                             kpoints: numpy.ndarray,
+                             axis: int = None, layer: int = None,
+                             offset: Union[List[float], numpy.ndarray] = None):
+    kx, ky, kz = get_kx_ky_kz(kpoints)
+    if axis is not None and layer is not None:
+        mask = get_mask(kpoints.shape[0], axis, layer)
+        if axis == 0:
+            kx, ky, kz = ky[mask], kz[mask], kx[mask]
+        elif axis == 1:
+            kx, ky, kz = kz[mask], kx[mask], ky[mask]
+        elif axis == 2:
+            kx, ky, kz = kx[mask], ky[mask], kz[mask]
+        else:
+            print("axis out of range, plot none instead")
+            kx, ky, kz = numpy.array([]), numpy.array([]), numpy.array([])
+    if offset is not None:
+        kx += offset[0]
+        ky += offset[1]
+        kz += offset[2]
+    axes3d.scatter(kx, ky, kz)
+
+
+def add_bands_scatter_plot(axes3d: Axes3D,
                            kpoints: numpy.ndarray, eigenvalues: numpy.ndarray,
-                           axis: int, layer: int, band_indices: Union[List[int], range], resolution: int,
-                           offset: Union[List[int], numpy.ndarray] = None):
+                           axis: int, layer: int, band_indices: Union[List[int], range],
+                           offset: Union[List[float], numpy.ndarray] = None):
+    x, y, zs = get_x_y_zs(kpoints, eigenvalues, axis, layer)
+    if offset is not None:
+        x += offset[0]
+        y += offset[1]
+        zs += offset[2]
+    for b in band_indices:
+        axes3d.scatter(x, y, zs[:, b])
+
+
+def add_bands_wireframe_plot(axes3d: Axes3D,
+                             kpoints: numpy.ndarray, eigenvalues: numpy.ndarray,
+                             axis: int, layer: int, band_indices: Union[List[int], range], resolution: int,
+                             offset: Union[List[float], numpy.ndarray] = None):
     x, y, zs = get_x_y_zs(kpoints, eigenvalues, axis, layer)
     if offset is not None:
         x += offset[0]
         y += offset[1]
         zs += offset[2]
     triang = tri.Triangulation(x, y)
+
     x_linspace = numpy.linspace(min(x), max(x), resolution)
     y_linspace = numpy.linspace(min(y), max(y), resolution)
+
+    for b in band_indices:
+        interpolator = tri.LinearTriInterpolator(triang, zs[:, b])
+        x_meshgrid, y_meshgrid = numpy.meshgrid(x_linspace, y_linspace)
+        z_mesggrid = interpolator(x_meshgrid, y_meshgrid)
+        b_range = max(band_indices) - min(band_indices)
+        color = (max(band_indices) - b)/b_range/1.5
+        axes3d.plot_wireframe(x_meshgrid, y_meshgrid, z_mesggrid, colors=(color, color, color))
+
+
+def add_bands_surface_plot(axes3d: Axes3D,
+                           kpoints: numpy.ndarray, eigenvalues: numpy.ndarray,
+                           axis: int, layer: int, band_indices: Union[List[int], range], resolution: int,
+                           offset: Union[List[float], numpy.ndarray] = None):
+    x, y, zs = get_x_y_zs(kpoints, eigenvalues, axis, layer)
+    if offset is not None:
+        x += offset[0]
+        y += offset[1]
+        zs += offset[2]
+    triang = tri.Triangulation(x, y)
+
+    x_linspace = numpy.linspace(min(x), max(x), resolution)
+    y_linspace = numpy.linspace(min(y), max(y), resolution)
+
     for b in band_indices:
         interpolator = tri.LinearTriInterpolator(triang, zs[:, b])
         x_meshgrid, y_meshgrid = numpy.meshgrid(x_linspace, y_linspace)
@@ -88,34 +174,21 @@ def add_bands_surface_plot(axes3d: Axes3D,
                             vmin=numpy.min(z_mesggrid), vmax=numpy.max(z_mesggrid))
 
 
-def add_kpoints_scatter_plot(axes3d: Axes3D,
-                             kpoints: numpy.ndarray,
-                             axis: int = None, layer: int = None,
-                             offset: numpy.ndarray = None):
-    kx, ky, kz = get_kx_ky_kz(kpoints)
-    if axis is not None and layer is not None:
-        mask = get_mask(kpoints.shape[0], axis, layer)
-        kx, ky, kz = kx[mask], ky[mask], kz[mask]
-    if offset is not None:
-        kx += offset[0]
-        ky += offset[1]
-        kz += offset[2]
-    axes3d.scatter(kx, ky, kz)
-
-
 def main():
     fig = pyplot.figure()
     axes3d = Axes3D(fig)
 
-    vasprun_root = get_vasprun_root("vasp_outputs/mp-4701/vasprun.xml")
-    kpoints = get_kpoints(vasprun_root)
+    vasprun_root = get_vasprun_root("vasp_outputs/sg1/696736_c.xml")
+    kpoints = get_kpoints_reciprocal(vasprun_root)
     eigenvalues = get_eigenvalues(vasprun_root)
 
-    maxorbitals = get_maxorbitals(vasprun_root)
-    band_indices = [key for key, val in enumerate(maxorbitals) if val <= 1]
+    band_indices = range(eigenvalues.shape[1] - 6, eigenvalues.shape[1])
+    axis, layer = 2, 4
 
-    add_bands_surface_plot(axes3d, kpoints, eigenvalues, 2, 4, band_indices, 27)
-    add_kpoints_scatter_plot(axes3d, kpoints, 2, 4)
+    add_bands_surface_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, 27)
+    # add_bands_wireframe_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices, 27)
+    # add_bands_scatter_plot(axes3d, kpoints, eigenvalues, axis, layer, band_indices)
+    # add_kpoints_scatter_plot(axes3d, kpoints, axis, layer)
 
     pyplot.axis("equal")
     pyplot.show()

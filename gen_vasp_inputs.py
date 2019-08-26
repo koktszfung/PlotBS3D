@@ -12,9 +12,9 @@ def get_input_set(mprester: MPRester, mpnum: int) -> MPRelaxSet:
     return MPRelaxSet(mprester.get_structure_by_material_id(f"mp-{mpnum}"), potcar_functional="PW91")
 
 
-def write_poscar_potcar(mpnum: int):
+def write_poscar_potcar(mpnum: int, write_dir_format: str):
     mprester = MPRester('vI8phwVV3Ie6s4ke')
-    write_dir = f"vasp_inputs/{mpnum}/"
+    write_dir = write_dir_format.format(mpnum)
     if not os.path.exists(write_dir):
         os.makedirs(write_dir)
     input_set = get_input_set(mprester, mpnum)
@@ -23,10 +23,12 @@ def write_poscar_potcar(mpnum: int):
 
 
 def main():
-    sg1 = [14983, 23487, 24595, 24705, 25483]
-    sg2 = [10559, 10560, 10621, 10838, 11462]
+    sg1 = [998710, 696736, 764744]
+    sg2 = [1003314, 28376, 9122]
     for i in sg1:
-        write_poscar_potcar(i)
+        write_poscar_potcar(i, "vasp_inputs/sg1/{}/")
+    for i in sg2:
+        write_poscar_potcar(i, "vasp_inputs/sg2/{}/")
 
 
 if __name__ == '__main__':
