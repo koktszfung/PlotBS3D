@@ -1,4 +1,4 @@
-half_size = 4
+half_size = 8
 full_size = half_size*2+1
 scale = 1/half_size
 with open("vasp_inputs/KPOINTS", "w") as file:

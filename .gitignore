@@ -3,3 +3,4 @@ vasp_outputs/
 pseudo-potential
 .idea/
 old_files/
+__pycache__/
